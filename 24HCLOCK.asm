@@ -1,9 +1,8 @@
-; ASSESSMENT 2 - DIGITAL 24H CLOCK
+; ASSESSMENT 2 - 24H DIGITAL CLOCK
 ; JACK DU BOULAY - 32712899
 ; DATE DUE - 02/11/25
 ;
 ; /// PROGRAM INFORMATION ///
-; 
 ; INSTRUCTIONS:	
 ; For the program to run correctly, the user is required to input the following values at variables:
 ; 		- seconds 	values: (00-59) 
@@ -12,11 +11,10 @@
 ; 		- ANY/ALL	values: (q - Q) <- this detects at any position in all variables to quit the program early.
 ;
 ; ABOUT:
-; 1. Upon successful insertion of values, the clock will run for 12 hours or 43200 seconds printing each increment into the console.
+; Upon successful insertion of values, the clock will run for 12 hours or 43200 seconds printing each increment into the console.
 ;
-; 2. Users of CLI programs can make mistakes so i've implemented a rudimentary try-catch solution
-;    Providing an error message that requests the user to re-insert the correct values or enter 'q' to quit.
-;
+; Users of CLI programs can make mistakes so i've implemented a rudimentary try-catch solution
+; providing an error message that requests the user to re-insert the correct values or enter 'q' to quit.
 
 ; DEFINE PROGRAM 
 TITLE DIGITAL_CLOCK_24H
@@ -36,9 +34,9 @@ TITLE DIGITAL_CLOCK_24H
 								db	"    -> Character values 'q'  to quit program.", 	13, 10, '$'
 	msg_program_success		db	"<<< Program completed successfully >>>$"
 	msg_terminate_program	db	" -> User has chosen to quit program.$"
-	msg_seconds   			db 	"Enter seconds (0-59):$"
-	msg_minutes   			db 	"Enter minutes (0-59):$"
-	msg_hours    			db 	"Enter hours   (0-23):$"
+	msg_seconds   			db 	"Enter seconds (00-59):$"
+	msg_minutes   			db 	"Enter minutes (00-59):$"
+	msg_hours    			db 	"Enter hours   (00-23):$"
 	msg_input_error   		db 	"INVALID VALUES - Please insert the correct values or enter 'q' to quit.$"
 	
 	; Variables
@@ -170,14 +168,7 @@ MSGInputError PROC
 	RET						
 MSGInputError ENDP
 
-; ######################
-; ##### END REGION #####
-; ######################
-
-; ##########################
-; ##### DEBUG MESSAGES #####
-; ##########################
-
+; DEBUG MESSAGE: General error
 DebugError PROC
 	CALL MSGNextLine
 	LEA DX, debug_error
@@ -196,9 +187,6 @@ DebugError ENDP
 
 GetUserInputs PROC
 check_order_position:
-	;MOV BL, var_terminate_program
-	;CMP BL, 1
-	;JE	terminate_program
 	MOV var_input_error, 0		; reset to default value
 
 	MOV BL, var_order_position	; Determines position of inputs
@@ -238,8 +226,9 @@ check_order_position:
 		
 		
 	position_hours:
+		; This stops get hours after inserting valid values for hours - it loops twice 
 		CMP BL, 2
-		JG terminate_program
+		JG inputs_return_main
 		
 		CALL MSGGetHours
 		MOV var_string_position, 0
@@ -273,7 +262,7 @@ check_order_position:
 	
 		MOV BL, var_terminate_program	; Check to quit program before accepting input
 		CMP BL, 1
-		JGE terminate_program
+		JGE inputs_return_main
 		
 		MOV BL, var_input_error
 		CMP BL, 1
@@ -286,7 +275,7 @@ check_order_position:
 		CALL MSGInputError
 		JMP check_order_position
 	
-	terminate_program:			
+	inputs_return_main:			
 		RET
 	
 GetUserInputs ENDP
