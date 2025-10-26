@@ -156,6 +156,7 @@ check_order_position:
 	
 	
 	position_seconds:
+		MOV var_string_position, 7	
 		CALL GetSeconds
 		JMP validate_input
 	
@@ -169,7 +170,7 @@ check_order_position:
 		JG terminate_program		; get out of loop
 		
 		CALL Gethours
-		MOV var_string_position, 7
+		MOV var_string_position, 1
 		JMP validate_input
 	
 	validate_input:
