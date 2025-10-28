@@ -1,244 +1,379 @@
-; funct test
+; ASSESSMENT 2 - 12H DIGITAL CLOCK
+; JACK DU BOULAY - 32712899
+; DATE DUE - 02/11/25
 
+; /// PROGRAM INFORMATION ///
+; INSTRUCTIONS:	
+; For the program to run correctly, the user is required to input the following values:
+; 		- seconds 	values: (0-9) 
+; 		- minutes 	values: (0-9)
+; 		- hours 	values: (0-9)
+; 		- ANY/ALL	values: (Q or q) <- if q is detected in variables then quit program early.
+;
+; ABOUT:
+; Upon insertion of valid values, the clock will run for 12 hours (43199 seconds) printing each increment into the console.
+;
+; Users of CLI programs can/will make mistakes so i've implemented a rudimentary try-catch solution
+; providing an error message that requests the user to re-insert the valid values or enter 'q' to quit.
+;
+; USEFUL INFO:
+; https://www.commfront.com/pages/ascii-chart
+; https://www.eecg.utoronto.ca/~amza/www.mindsec.com/files/x86regs.html 
 
-; DEFINE PROGRAM 
-TITLE InsertingValuesToAString
-.MODEL SMALL
-.STACK 100H
+TITLE DIGITAL_CLOCK_12H
+.MODEL SMALL					; Code segment: 1, 		Data segment: 1
+.STACK 100H						; Workspace: 256 bytes 
 
-; DEFINITIONS
 .DATA
-	; Debugging
-	debug_input_error   	db 	"INVALID VALUES$"
-	debug_error				db 	"An error has occured$"
+	; CONSTANTS
+	CONST_MIN0 				equ 0						; EQU (equate) is ideal for constants
+	CONST_MAX9 				equ 9						; not stored in memory, can be inherited directly
+	CONST_MAX5				equ 5
+	CONST_TIME				equ 43199					; 12 hours = 43200 seconds, but they want: "start time 01:02:01, the clock will stop at 01:02:00"
+
+	; /// DEBUG
+	debug_error				db 	"An error has occurred.$"  
 	
-	; Program messages
-	msg_program_run			db 	"Insert Values between (0-9)$"
-	msg_quit_program		db	"User has chosen to quit program.$"
-	msg_nextline 			db 	13,10,'$'
-	msg_seconds   			db "Enter seconds (0-9):$"
-	msg_minutes   			db "Enter minutes (0-9):$"
-	msg_hours    			db "Enter hours (0-9):$"
+	; /// MESSAGES
+	msg_nextline 			db 	13, 10, '$'
+	msg_prgrm_strt			db 	"<<< DIGITAL CLOCK PROGRAM >>>", 13, 10, '$'
+	msg_prgrm_abt			db 	"  Please insert the following:", 13, 10
+								db	"    -> Numeric values  (0-9) to set start time.", 13, 10
+								db	"    -> Character values 'q'  to quit program.", 13, 10, '$'
+	msg_prgrm_exit			db	"<<< Program exited successfully >>>$"
+	msg_prgrm_term			db	" -> User has chosen to quit program.$"
+	msg_seconds   			db 	"Enter seconds (0-9):$"
+	msg_minutes   			db 	"Enter minutes (0-9):$"
+	msg_hours    			db 	"Enter hours   (0-9):$"
+	msg_input_error   		db 	"INVALID VALUES - Please insert valid values or enter 'q' to quit.$"
 	
-	; Variables
-	var_order_position		db 	0
-	var_input 				db 	2, 0, 3 DUP('$')		; 
-	var_string 				db 	"hh:mm:ss$" 			;  1, 4, 7 
-	var_string_position		db  1						; string positions = [23:56:89$]
-	var_terminate_program	db	0						; Determines program to terminate at value >= 1				
+	; /// GLOBAL VARIABLES ///
+	global_clock_display 	db 	"0h:0m:0s$" 			; [0Z:0Y:0X]
 	
-	; Constants
-	CONST_MIN 				db 	0
-	CONST_MAX 				db 	9
-	
+	; input function vars
+	var_order_input			db 	0						; 0 = sec, 1 = min, 2 = hr
+	var_user_input 			db 	2, 0, 3 DUP('$')		; User input variable -> detects for 3 characters [xy(enter)]
+	var_terminate_program	db	0						; Determines program to terminate at value >= 1	"user chose to quit"			
+
+	; clock function vars
+	var_clock_second 		db 	1						; Applied right to left
+	var_clock_max			db 	0						; This variable controls limits for the clock function
+
 .CODE
 main PROC
-	
-	; DISPLAY PROMPT
-	; MOV DESTINATION, SOURCE
-	MOV AX,@DATA			; loads the address of data segment (AX 'Accumulator' temporarily holds it)
-	MOV DS,AX				; Copies segment address from AX into DS (Data Segment register)
-	
-	CALL ProgramRun
+	MOV AX,@DATA										; load data segment address 
+	MOV DS,AX											; initialise DS with data segment
+
+	CALL MSGProgramStart								
+	CALL MSGProgramAbout	
 	CALL GetUserInputs
-	CALL DisplayTime
+	
+	MOV AH, var_terminate_program
+	CMP AH, 1
+		JE ExitEarly
+		
+	CALL ClockFunction
+	JMP Exit
+	
+	ExitEarly:
+		CALL MSGQuitProgram
 	
 	Exit:    
+		CALL MSGProgramExit
 		MOV AH,4Ch                              
 		INT 21h  
 main ENDP
 
-
-
-
 ; ############################
 ; ##### PROGRAM MESSAGES #####
 ; ############################
+; AX & DX register values in my program are not preserved
 
-; DISPLAY MESSAGE - Go to next line
-ProgramRun PROC
-	LEA DX, msg_program_run	
-	MOV AH, 09h				
-	INT 21h			
-	CALL NextLine
+; MESSAGE: Program start
+MSGProgramStart PROC				
+	CALL 	MSGNextLine				; Move cursor to next line before displaying current message
+	LEA 	DX, msg_prgrm_strt		; Get message (Load Effective Address of string into DX)
+	MOV 	AH, 09h					; Display string at DS:DX
+	INT 	21h						; Interrupt to print string 
+	RET								; Return to caller
+MSGProgramStart ENDP				
+
+; MESSAGE: About program
+MSGProgramAbout PROC
+	LEA 	DX, msg_prgrm_abt
+	MOV 	AH, 09h				
+	INT 	21h			
 	RET						
-ProgramRun ENDP
+MSGProgramAbout ENDP
 
-; DISPLAY MESSAGE - Go to next line
-QuitProgram PROC
-	LEA DX, msg_quit_program	
-	MOV AH, 09h				
-	INT 21h			
-	CALL NextLine
+; MESSAGE: Program Exit
+MSGProgramExit PROC
+	CALL 	MSGNextLine
+	CALL 	MSGNextLine
+	LEA 	DX, msg_prgrm_exit	
+	MOV 	AH, 09h				
+	INT 	21h			
 	RET						
-QuitProgram ENDP
+MSGProgramExit ENDP
 
-; Go to next line
-NextLine PROC
-	LEA DX, msg_nextline	
-	MOV AH, 09h				
-	INT 21h					
+; MESSAGE: Program terminate early
+MSGQuitProgram PROC
+	CALL 	MSGNextLine
+	CALL 	MSGNextLine
+	LEA 	DX, msg_prgrm_term	
+	MOV 	AH, 09h				
+	INT 	21h			
 	RET						
-NextLine ENDP
+MSGQuitProgram ENDP
 
-; MESSAGE: GET SECONDS
-GetSeconds PROC
-	CALL NextLine
-	LEA DX,msg_seconds			
-	MOV AH,09h				
-	INT 21h					
-	RET						
-GetSeconds ENDP
-
-; MESSAGE: GET MINUTES
-GetMinutes PROC
-	CALL NextLine
-	LEA DX,msg_minutes			
-	MOV AH,09h				
-	INT 21h					
-	RET						
-GetMinutes ENDP
-
-; MESSAGE: GET HOURS
-GetHours PROC
-	CALL NextLine
-	LEA DX,msg_hours	
-	MOV AH,09h				
-	INT 21h					
-	RET						
-GetHours ENDP
-
-; Display Result
-DisplayTime PROC
-	CALL 	NextLine
-	LEA 	DX, var_string			
+; MESSAGE: Next line
+MSGNextLine PROC
+	LEA 	DX, msg_nextline	
 	MOV 	AH, 09h				
 	INT 	21h					
+	RET						
+MSGNextLine ENDP
+
+; MESSAGE: GET SECONDS
+MSGGetSeconds PROC
+	CALL 	MSGNextLine
+	LEA 	DX,msg_seconds			
+	MOV 	AH,09h				
+	INT 	21h					
+	RET						
+MSGGetSeconds ENDP
+
+; MESSAGE: GET MINUTES
+MSGGetMinutes PROC
+	CALL 	MSGNextLine
+	LEA 	DX,msg_minutes			
+	MOV 	AH,09h				
+	INT 	21h					
+	RET						
+MSGGetMinutes ENDP
+
+; MESSAGE: GET HOURS
+MSGGetHours PROC
+	CALL 	MSGNextLine
+	LEA 	DX,msg_hours	
+	MOV 	AH,09h				
+	INT 	21h					
+	RET						
+MSGGetHours ENDP
+
+; MESSAGE: INPUT ERROR
+MSGInputError PROC
+	CALL 	MSGNextLine	
+	CALL 	MSGNextLine	
+	LEA 	DX, msg_input_error
+	MOV 	AH, 09h				
+	INT 	21h		
+	RET						
+MSGInputError ENDP
+
+; MESSAGE: CLOCK 
+DisplayClock PROC ; a push/pop demonstration - but arguably redundant
+	PUSH	AX		
+	PUSH	DX
+	CALL 	MSGNextLine	
+	LEA 	DX, global_clock_display		
+	MOV 	AH, 09h				
+	INT 	21h				
+	POP 	DX
+	POP		AX
 	RET		
-DisplayTime ENDP
-
-; ##########################
-; ##### DEBUG MESSAGES #####
-; ##########################
-
-; DISPLAY DEBUG MESSAGE - Input error
-DebugInputError PROC
-	CALL NextLine	
-	LEA DX, debug_input_error
-	MOV AH, 09h				
-	INT 21h		
-	RET						
-DebugInputError ENDP
-
-DebugError PROC
-	CALL NextLine
-	LEA DX, debug_error
-	MOV AH, 09h				
-	INT 21h				
-	RET						
-DebugError ENDP
+DisplayClock ENDP
 
 ; #######################
 ; ##### USER INPUTS #####
 ; #######################
 
 GetUserInputs PROC
-check_order_position:
-	;MOV BL, var_terminate_program
-	;CMP BL, 1
-	;JE	terminate_program
-
-	MOV BL, var_order_position	; Determines position of inputs
-	CMP BL, 1					; Positions: 0 = Seconds, 1 = minutes, 2 = hours 
-	JL	position_seconds
-	JE	position_minutes
-	JG	position_hours
+	check_order_position:
+		MOV 	SI, OFFSET global_clock_display
+		MOV 	AL, var_order_input	
+		
+		; If position >= 3 {return} - program received 3 valid user inputs
+		CMP AL, 3
+			JGE	return_to_main			
+		
+		; Determines jump by order position value 
+		; Positions: 0 = sec, 1 = min, 2 = hr
+		CMP AL, 1						
+			JL	position_seconds
+			JE	position_minutes
+			JG	position_hours
 	
-	
-	position_seconds:
-		MOV var_string_position, 7	
-		CALL GetSeconds
-		JMP validate_input
+	position_seconds:	
+		ADD		SI, 7						; [hh:mm:sX]
+		CALL 	MSGGetSeconds
+			JMP validate_input
 	
 	position_minutes:
-		CALL GetMinutes
-		MOV var_string_position, 4	
-		JMP validate_input
+		ADD		SI, 4						; [hh:mY:ss]
+		CALL 	MSGGetMinutes
+			JMP validate_input
 		
 	position_hours:
-		CMP BL, 4
-		JG terminate_program		; get out of loop
-		
-		CALL Gethours
-		MOV var_string_position, 1
-		JMP validate_input
+		ADD		SI, 1						; [hZ:mm:ss]
+		CALL 	MSGGetHours
+			JMP validate_input
 	
 	validate_input:
-		CALL UserInput
-		CALL UserInputValidator
+		CALL 	UserInput					; Get the user input
+		CALL 	UserInputValidator			; Validate the user input
 		
-		MOV BL, var_terminate_program	; Check to quit program before accepting input
-		CMP BL, 1
-		JE terminate_program
+		MOV 	AL, var_terminate_program	; Check to quit program before accepting input
+		CMP AL, 1							; If AL = 1 -> exit 
+			JE 	return_to_main			
 		
-		LEA BX, var_string				; Base 
-		
-		MOV DL, AH
-		
-		MOV AL, var_string_position
-		MOV AH, 0
-		MOV SI, AX	; Source Index - convert byte to word
-		MOV [BX + SI], DL
-		JMP check_order_position
+		MOV [SI], AH						; Insert AH value to cell [SI] in clock string
+			JMP check_order_position		
 	
-	terminate_program:
-	CALL QuitProgram
-	RET
+	return_to_main:
+		RET
 	
 GetUserInputs ENDP
 
 ; Get user input
 UserInput PROC
-	LEA DX, var_input
-	MOV AH, 0Ah   			; Line Feed - input   
+	LEA 	DX, var_user_input
+	MOV 	AH, 0Ah   					; Line Feed  
 	INT 	21h 				
-    CMP AH,	0Dh			; check if user pressed enter
 	RET
 UserInput ENDP
 
-
 UserInputValidator PROC
-	; Quit program 
-	LEA BX, var_input
-	MOV AH, [BX + 2]
-	CMP AH, 81			
-	JE	return_quit_progam
-	CMP AH, 113			
-	JE	return_quit_progam
-
-	; Comparison of true value
-	SUB AH, 48
-	MOV BL, AH	
+	MOV 	BX, OFFSET var_user_input
+	MOV 	AH, [BX + 2]
 	
-	; Make sure the value is a number between 0-9
-	CMP BL, CONST_MIN
-	JL	return_invalid_input
-	CMP BL, CONST_MAX
-	JG	return_invalid_input
+	CMP AH, 81							; 'Q'
+		JE	return_to_inputs
+	CMP AH, 113							; 'q'
+		JE	return_to_inputs
 
-	; Insert input into var_string
-	ADD AH, 48
-	INC var_order_position	; Move to next position
+	; subtract 48 to get true value
+	SUB AH, 48							
+	
+	; if value is not between 0-9 inclusive, return with input error
+	CMP AH, CONST_MIN0
+		JL	return_invalid_input
+	CMP AH, CONST_MAX9
+		JG	return_invalid_input
+
+	; Insert input into global_clock_display
+	ADD AH, 48							; Revert back to char value
+	INC var_order_input					; Move to next position
 	RET
 
 	return_invalid_input:
-	CALL DebugInputError
-	RET
+		CALL 	MSGInputError 				
+		RET
 	
-	return_quit_progam:
-	MOV var_terminate_program, 1
-	RET
+	return_to_inputs:
+		MOV 	var_terminate_program, 1
+		RET
 	
 UserInputValidator ENDP
 
+; ##########################
+; ##### CLOCK FUNCTION #####
+; ##########################
+
+; For loop:  for(CONST_TIME > 0; i--) {update clock with +1 second}
+ClockFunction PROC
+	MOV 	CX, CONST_TIME				; load total seconds to counter register
+	ClockLoop:
+		;CMP CX, 0						; check if remaining seconds = 0
+			;JE	LimitReached			; if remaining seconds = 0 -> exit loop , else keep looping
+	
+		MOV 	var_clock_second, 1		; Clock second set to 1
+		CALL	ClockUpdate				; Go through each character position of the clock to add second
+		CALL 	DisplayClock			; display clock in CLI after adding 1 second
+		DEC 	CX						; decrement the total clock time
+			;JMP ClockLoop		
+			JNZ ClockLoop				; better than using cmp, jump if not zero
+		
+	;LimitReached:	; Program time reached -> exit program
+		RET
+		
+ClockFunction ENDP
+
+; Function updates the global_clock_display -> char array value alteration 
+; I'm sure theres a better way of going through this linearly...
+ClockUpdate PROC
+	MOV 	SI, OFFSET global_clock_display	; [SI] = cell 0
+	ADD 	SI, 7							; [SI] = cell 7
+	
+	; Going right to left [hh:mm:ss]	cells: [01:34:67]
+	CalculateSeconds:						
+		MOV 	var_clock_max, CONST_MAX9		; cell [7] 
+		CALL 	Calculate					 
+		MOV 	var_clock_max, CONST_MAX5		; cell [6]
+		CALL 	Calculate	
+		DEC 	SI								; skip cell [5]
+		
+	CalculateMinutes:
+		MOV 	var_clock_max, CONST_MAX9		; cell [4] 
+		CALL 	Calculate					 
+		MOV 	var_clock_max, CONST_MAX5		; cell [3]
+		CALL 	Calculate	
+		DEC		SI								; skip cell [2]
+		
+	CalculateHours:
+		MOV 	AH, [SI - 1]				; get value at cell [0]
+		SUB 	AH, 48						; get true value
+		CMP AH, 1							; compare true value to 1
+			JL 	BelowTen
+			JGE AboveTen
+		
+		BelowTen:						
+			MOV 	var_clock_max, CONST_MAX9	; cell [1] 
+			CALL 	Calculate
+			JMP 	FirstPos
+		
+		AboveTen:						
+			MOV 	var_clock_max, 1			; cell [1]
+			CALL 	Calculate
+	
+		FirstPos:								; cell [0]
+			MOV 	var_clock_max, 1			; tick over 11:59:59 -> 00:00:00
+			CALL 	Calculate
+			RET
+
+ClockUpdate	ENDP
+
+Calculate PROC
+	; If (clock second < 1) 
+	MOV 	AL, var_clock_second
+	CMP AL, 1
+		JL	SkipToNextCell
+		
+	; If (clock second = 1) 
+	MOV 	AH, [SI]
+	SUB 	AH, 47		; sub 47 adds +1 to the true value						
+	
+	; If (AH + 1 > MAX) 
+	CMP AH, var_clock_max
+		JG	GoToNextCell		
+	
+	; If (AH + 1 <= MAX) 
+	; {add char value to cell position and decrement clock second}
+	ADD 	AH, 48
+	DEC 	var_clock_second
+	JMP 	UpdateString
+	
+	; if (AH + 1 > MAX) {set AH = 48} '0'
+	GoToNextCell:					
+		MOV 	AH, 48	
+	
+	UpdateString:
+		MOV 	[SI], AH				; insert updated value to global_clock_display at position offset 
+		DEC 	SI						; decrement position source index
+		RET
+	
+	SkipToNextCell:
+		RET
+		
+Calculate ENDP
 END MAIN
