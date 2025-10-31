@@ -37,7 +37,7 @@ TITLE DIGITAL_CLOCK_24H
 	msg_seconds   			db 	"Enter seconds (00-59):$"
 	msg_minutes   			db 	"Enter minutes (00-59):$"
 	msg_hours    			db 	"Enter hours   (00-23):$"
-	msg_input_error   		db 	"INVALID VALUES - Please insert correct values or enter 'q' to quit.$"
+	msg_input_error   		db 	"INVALID VALUES - Please insert the correct values or enter 'q' to quit.$"
 	
 	; Variables
 	var_order_position		db 	0						; 0 = seconds, 1 = minutes, 2 = hours

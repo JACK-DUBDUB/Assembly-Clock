@@ -9,12 +9,14 @@
 ; 		- minutes 	values: (0-9)
 ; 		- hours 	values: (0-9)
 ; 		- ANY/ALL	values: (Q or q) <- if q is detected in variables then quit program early.
-;
+; 
 ; ABOUT:
 ; Upon insertion of valid values, the clock will run for 12 hours (43199 seconds) printing each increment into the console.
 ;
 ; Users of CLI programs can/will make mistakes so i've implemented a rudimentary try-catch solution
 ; providing an error message that requests the user to re-insert the valid values or enter 'q' to quit.
+;
+; The AX & DX register values in my program are not typically 'preserved'
 ;
 ; USEFUL INFO:
 ; https://www.commfront.com/pages/ascii-chart
@@ -26,14 +28,24 @@ TITLE DIGITAL_CLOCK_12H
 
 .DATA
 	; CONSTANTS
-	CONST_MIN0 				equ 0						; EQU (equate) is ideal for constants
-	CONST_MAX9 				equ 9						; not stored in memory, can be inherited directly
+	CONST_MIN0 				equ 0						; EQU (equate) is ideal for constants as its
+	CONST_MAX9 				equ 9						; not stored in memory and can be inherited directly
 	CONST_MAX5				equ 5
+	CONST_MAX1				equ 1
 	CONST_TIME				equ 43199					; 12 hours = 43200 seconds, but they want: "start time 01:02:01, the clock will stop at 01:02:00"
 
-	; /// DEBUG
-	debug_error				db 	"An error has occurred.$"  
+	; /// GLOBAL VARIABLES ///
+	global_clock_display 	db 	"0h:0m:0s$" 			; [0Z:0Y:0X]
 	
+	; input function vars
+	var_order_input			db 	0						; 0 = sec, 1 = min, 2 = hr
+	var_user_input 			db 	2, 0, 3 DUP('$')		; User input variable -> detects for 3 characters [xy(enter)]
+	var_terminate_program	db	0						; Determines program to terminate at value >= 1	"user chose to quit"			
+
+	; clock function vars
+	var_clock_second 		db 	1						; Applied right to left
+	var_clock_max			db 	0						; This variable controls limits for the clock function
+
 	; /// MESSAGES
 	msg_nextline 			db 	13, 10, '$'
 	msg_prgrm_strt			db 	"<<< DIGITAL CLOCK PROGRAM >>>", 13, 10, '$'
@@ -47,18 +59,9 @@ TITLE DIGITAL_CLOCK_12H
 	msg_hours    			db 	"Enter hours   (0-9):$"
 	msg_input_error   		db 	"INVALID VALUES - Please insert valid values or enter 'q' to quit.$"
 	
-	; /// GLOBAL VARIABLES ///
-	global_clock_display 	db 	"0h:0m:0s$" 			; [0Z:0Y:0X]
+	; /// DEBUG
+	debug_error				db 	"An error has occurred.$"  ; not used in final product
 	
-	; input function vars
-	var_order_input			db 	0						; 0 = sec, 1 = min, 2 = hr
-	var_user_input 			db 	2, 0, 3 DUP('$')		; User input variable -> detects for 3 characters [xy(enter)]
-	var_terminate_program	db	0						; Determines program to terminate at value >= 1	"user chose to quit"			
-
-	; clock function vars
-	var_clock_second 		db 	1						; Applied right to left
-	var_clock_max			db 	0						; This variable controls limits for the clock function
-
 .CODE
 main PROC
 	MOV AX,@DATA										; load data segment address 
@@ -87,8 +90,6 @@ main ENDP
 ; ############################
 ; ##### PROGRAM MESSAGES #####
 ; ############################
-; AX & DX register values in my program are not preserved
-
 ; MESSAGE: Program start
 MSGProgramStart PROC				
 	CALL 	MSGNextLine				; Move cursor to next line before displaying current message
@@ -172,15 +173,11 @@ MSGInputError PROC
 MSGInputError ENDP
 
 ; MESSAGE: CLOCK 
-DisplayClock PROC ; a push/pop demonstration - but arguably redundant
-	PUSH	AX		
-	PUSH	DX
+DisplayClock PROC 
 	CALL 	MSGNextLine	
 	LEA 	DX, global_clock_display		
 	MOV 	AH, 09h				
 	INT 	21h				
-	POP 	DX
-	POP		AX
 	RET		
 DisplayClock ENDP
 
@@ -281,42 +278,41 @@ UserInputValidator ENDP
 ; ##########################
 
 ; For loop:  for(CONST_TIME > 0; i--) {update clock with +1 second}
+; Formerly this loop used a cmp CX, 0 to exit the loop, using JNZ simplifies this logic
 ClockFunction PROC
 	MOV 	CX, CONST_TIME				; load total seconds to counter register
-	ClockLoop:
-		;CMP CX, 0						; check if remaining seconds = 0
-			;JE	LimitReached			; if remaining seconds = 0 -> exit loop , else keep looping
-	
+	ClockLoop:	
 		MOV 	var_clock_second, 1		; Clock second set to 1
-		CALL	ClockUpdate				; Go through each character position of the clock to add second
+		PUSH AX
+		PUSH SI
+			CALL	ClockUpdate				; Go through each character position of the clock to add second
+		POP SI
+		POP AX
 		CALL 	DisplayClock			; display clock in CLI after adding 1 second
 		DEC 	CX						; decrement the total clock time
-			;JMP ClockLoop		
-			JNZ ClockLoop				; better than using cmp, jump if not zero
-		
-	;LimitReached:	; Program time reached -> exit program
+			JNZ ClockLoop				; better than using cmp to exit, JNZ (jump if not zero condition)
 		RET
 		
 ClockFunction ENDP
 
 ; Function updates the global_clock_display -> char array value alteration 
-; I'm sure theres a better way of going through this linearly...
+; This function performs string manipulation based on position and value, from right to left 
 ClockUpdate PROC
 	MOV 	SI, OFFSET global_clock_display	; [SI] = cell 0
-	ADD 	SI, 7							; [SI] = cell 7
+	ADD 	SI, 7							; [SI] = cell 7 <- Offset is now [SI+7]
 	
 	; Going right to left [hh:mm:ss]	cells: [01:34:67]
 	CalculateSeconds:						
-		MOV 	var_clock_max, CONST_MAX9		; cell [7] 
+		MOV 	var_clock_max, CONST_MAX9		; cell [7] max = 9
 		CALL 	Calculate					 
-		MOV 	var_clock_max, CONST_MAX5		; cell [6]
+		MOV 	var_clock_max, CONST_MAX5		; cell [6] max = 5
 		CALL 	Calculate	
 		DEC 	SI								; skip cell [5]
 		
 	CalculateMinutes:
-		MOV 	var_clock_max, CONST_MAX9		; cell [4] 
+		MOV 	var_clock_max, CONST_MAX9		; cell [4] max = 9
 		CALL 	Calculate					 
-		MOV 	var_clock_max, CONST_MAX5		; cell [3]
+		MOV 	var_clock_max, CONST_MAX5		; cell [3] max = 5
 		CALL 	Calculate	
 		DEC		SI								; skip cell [2]
 		
@@ -328,33 +324,33 @@ ClockUpdate PROC
 			JGE AboveTen
 		
 		BelowTen:						
-			MOV 	var_clock_max, CONST_MAX9	; cell [1] 
+			MOV 	var_clock_max, CONST_MAX9	; cell [1] max = 1
 			CALL 	Calculate
 			JMP 	FirstPos
 		
 		AboveTen:						
-			MOV 	var_clock_max, 1			; cell [1]
+			MOV 	var_clock_max, CONST_MAX1	; cell [1] max = 1
 			CALL 	Calculate
 	
-		FirstPos:								; cell [0]
-			MOV 	var_clock_max, 1			; tick over 11:59:59 -> 00:00:00
-			CALL 	Calculate
+		FirstPos:								
+			MOV 	var_clock_max, CONST_MAX1	; cell [0] max = 1
+			CALL 	Calculate					; tick over 11:59:59 -> 00:00:00
 			RET
 
 ClockUpdate	ENDP
 
 Calculate PROC
-	; If (clock second < 1) 
+	; If (clock second != 1) 
 	MOV 	AL, var_clock_second
 	CMP AL, 1
 		JL	SkipToNextCell
 		
-	; If (clock second = 1) 
+	; If (clock second == 1) 
 	MOV 	AH, [SI]
 	SUB 	AH, 47		; sub 47 adds +1 to the true value						
 	
 	; If (AH + 1 > MAX) 
-	CMP AH, var_clock_max
+	CMP AH, var_clock_max	; the clock max value is determined, prior to the calculate call.
 		JG	GoToNextCell		
 	
 	; If (AH + 1 <= MAX) 
@@ -363,13 +359,13 @@ Calculate PROC
 	DEC 	var_clock_second
 	JMP 	UpdateString
 	
-	; if (AH + 1 > MAX) {set AH = 48} '0'
+	; If (AH + 1 > MAX) {set AH = 48} '0'
 	GoToNextCell:					
 		MOV 	AH, 48	
 	
 	UpdateString:
-		MOV 	[SI], AH				; insert updated value to global_clock_display at position offset 
-		DEC 	SI						; decrement position source index
+		MOV 	[SI], AH				; insert updated value to global_clock_display at offset 
+		DEC 	SI						; decrement position offset 
 		RET
 	
 	SkipToNextCell:
