@@ -1,0 +1,101 @@
+// ASSIGNMENT TWO - DIGITAL CLOCK USING ASSEMBLY PROGRAMMING
+// JACK DU BOULAY - 32712899
+// Assignment due - 2/11/2025
+
+Core idea of the 12 hour clock program
+1. Clock must display time in hh:mm:ss 
+2. Clock must get 3 user inputs where each in put is placed in the appropriate string position.
+3. Clock must run/increment (1++) seconds for approximately 12 hours.
+4. Clock must print line-by-line for each increment similar to the program CALCULA.EXE.
+5. Clock program must finish and return back to DOSBOX.
+
+An explanation of my logic flow of my program using C style intuition from a top-down methodology viewpoint
+-> START CLOCK
+	-> Display options for clock program
+		-> Options include: Press 'q' to quit or input numbers (0-9)
+
+-> Get valid user inputs:
+	-> GET 3 inputs from user, allowing numbers between ('0'-'9') OR ('q'-'Q')
+		-> Where order of user inputs is:  
+			(X)seconds 
+			(Y)minutes 
+			(Z)hours
+		-> At any point, the user can enter 'q' to exit the program early
+
+-> If 3 inputs were valid numeric values for the clock start time then the program will run through the clock function display
+	-> The program will display the time for each increment of the clock seconds for approximately 12 hours or 43199 seconds.
+	-> However, The program does not run for 12 hours in real time, this is a for loop that rapidly prints out the clock time.
+	
+-> Upon running through the maximum number of loops, the program will display a message saying the program has quit and then return the user back to dosbox.
+
+Major assumptions I've made for this project.
+-> 	This program likley doesn't require the usage of PUSH/POP for it to function, however I'll try to implement it to demonstrate the use of Stack
+-> 	Effective register utilisation, given my computer system's capabilities, I do not know how to effectively utilitise each register to get the most benefit (expected as a novice).
+	However, from my timed tests of CALCULA.EXE and my program, 12HCLOCK.EXE, my program runs significantly faster in my tests, so I'll call that a win.
+->	I'll likely recognise some common programming patterns in assembly, the assembly samples provided have been adequately explained for me to grasp.
+
+Limitations of my program.
+Limitations could be: 
+	1. 	Not implementing other useful user experience shortcuts, maybe having an option to enter 'b' to go back to the previous input if they have inputted the wrong value by mistake. 
+		So for exmaple, if a user accidentally entering 8 in the minutes input, they can go back and modify the value they actually wanted.
+	2. 	Another option could be setting the maximum runtime, this could be implemented with a basic CLI switch-case menu system that would provide all available options such as:
+		-> 1. Set clock timer
+		-> 2. Set clock run time
+		-> 3. Run clock
+		-> 4. Exit program
+	3. Another option would be allow the user to get 3 inputs but with 2 digits values, so a user can use 24 Hrs instead of 12
+	4. Another option could be setting and displaying AM/PM directly after the clock display string.
+	
+Technical difficulties face during this assignment.
+->	For me, the only major issue i've had is trying to implement push/pop effectively in my program.
+	While it does exist in my program, I think its a feature I've likely under utilised.
+	
+Instructions: (this is included in the 12HCLOCK.ASM)
+INSTRUCTIONS:	
+For the program to run correctly, the user is required to input the following values:
+ 	- seconds 	values: (0-9) 
+ 	- minutes 	values: (0-9)
+	- hours 	values: (0-9)
+	- ANY/ALL	values: (Q or q) <- if q is detected in any of the time variables then the quit program early.
+
+
+
+
+
+
+
+
+
+
+
+
+# Logic flow of a clock
+- Assign the variables accordingly to the position of each character where hh:mm:ss is now FE:DC:BA depending on how we look at it
+- First, the logic flow will be explained by setting the clock to the default state of 00:00:00, where the turnover is at 11:59:59 -> 00:00:00
+	LOGIC:
+		- As each second passes, we increment the seconds variable, 'A', by 1 for each second that passes
+		- As 'A' increments to 10 set variable 'A' to 0, then increment 'B' 
+			00:00:09 -> 00:00:10
+		- As 'B' increments to 6, set variable 'B' to 0, then increment 'C'
+			00:00:59 -> 00:01:00
+		- As 'C' increments to 10, set variable'C' to 0, then increment 'D'
+			00:09:59 -> 00:10:00
+		- As 'D' increments to 6, set variable 'D' to 0, then increment 'E'
+			00:59:59 -> 01:00:00
+		- As 'E' increments to 10, set variable 'E' to 0, then increment 'F'
+			09:59:59 -> 10:00:00
+		- As 'F' increments to 12, set variable 'F' to 0
+		
+- This could likely be simplified
+	IF hh:mm:ss -> C:B:A
+	As 'A' approaches 60, increment 'B', set 0 for 'A'
+	As 'B' approaches 60, increment 'C', set 0 for 'B' AND 'A'
+	As 'C' Approaches 12, set 0 for 'C', set 0 for 'B' AND 'A'
+	
+
+
+-> program likey converts ascii to digits, likely by subtracting the ascii value 48
+-> increments seconds by 1
+
+
+*/  
